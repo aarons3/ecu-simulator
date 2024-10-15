@@ -10,8 +10,36 @@ def get_vin():
     return CONFIG["vin"].get("value")
 
 
+def get_cal_id():
+    return CONFIG["cal_id"].get("value")
+
+
+def get_cvn():
+    return CONFIG["cvn"].get("value")
+
+
 def get_ecu_name():
     return CONFIG["ecu_name"].get("value")
+
+
+def get_box_code():
+    return CONFIG["box_code"].get("value")
+
+
+def get_sw_vers():
+    return CONFIG["sw_vers"].get("value")
+
+
+def get_fazit():
+    return CONFIG["fazit"].get("value")
+
+
+def get_serial():
+    return CONFIG["serial"].get("value")
+
+
+def get_tcu_asw():
+    return CONFIG["tcu_asw"].get("value")
 
 
 def get_fuel_level():

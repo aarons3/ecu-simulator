@@ -4,7 +4,7 @@
     "description": "Vehicle Identification Number. Max 17 characters"
   },
   "cal_id": {
-    "value": "8V0259K 0003BVCK",
+    "value": "0GC300020F  2301",
     "description": "Calibration ID. Max XX characters"
   },
   "cvn": {
@@ -12,15 +12,15 @@
     "description": "CVN. Max 4 bytes"
   },
   "ecu_name": {
-    "value": "ECM -EngineControl",
+    "value": "TCM -TransmisCtrl",
     "description": "Name of the ECU. Max 20 characters"
   },
   "box_code": {
-    "value": "8V0906259K",
+    "value": "0GC300020F",
     "description": "Box Code"
   },
   "sw_vers": {
-    "value": "0003",
+    "value": "2301",
     "description": "Software Version"
   },
   "fazit": {
@@ -52,11 +52,11 @@
     "description": "11-Bit broadcast address the ECU uses to receive OBD requests (functional addressing). The target address is: obd_ecu_address + 0x8"
   },
   "obd_ecu_address": {
-    "value": "0x7E0",
+    "value": "0x7E1",
     "description": "11-Bit physical address the ECU uses to response to an OBD request. The target address is: obd_ecu_address + 0x8"
   },
   "uds_ecu_address": {
-    "value": "0x7E0",
+    "value": "0x7E1",
     "description": "11-Bit physical address the ECU uses to receive and response to an UDS request (physical addressing). The target address is: uds_ecu_address + 0x8. The UDS module does not use functional addressing"
   },
   "can_interface": {

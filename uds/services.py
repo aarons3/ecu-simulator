@@ -1,105 +1,134 @@
-import dtc_utils
-import ecu_config as ecu_config
+from uds import responses
 from loggers.logger_app import logger
 
-DIAGNOSTIC_SESSION_CONTROL_SID = 0x10
+SUPPORTED_PIDS_RESPONSE_MASK = 0x80000000
 
-DIAGNOSTIC_SESSION_TYPES = [0x01, 0x02, 0x03, 0x04]
+SUPPORTED_PIDS_RESPONSE_INIT_VALUE = 0x00000001
 
-DIAGNOSTIC_SESSION_PARAMETER_RECORD = [0x00, 0x1E, 0x0B, 0xB8]
+SUPPORTED_PIDS_RESPONSE_NUMBER_OF_PIDs = 32
 
-ECU_RESET_SID = 0x11
+POSITIVE_RESPONSE_MASK = 0x40
 
-ECU_RESET_ENABLE_RAPID_POWER_SHUT_DOWN = 0x04
+BIG_ENDIAN = "big"
 
-ECU_RESET_POWER_DOWN_TIME = 0x0F
+FUEL_TYPE = responses.get_fuel_type()
 
-READ_DTC_INFO_BY_STATUS_MASK = 0x2
+DTCs = responses.get_dtcs()
 
-READ_DTC_INFO_SID = 0x19
+VIN = responses.get_vin()
 
-READ_DTC_STATUS_AVAILABILITY_MASK = 0xFF
+CVN = responses.get_cvn()
 
-DTCS = dtc_utils.encode_uds_dtcs(ecu_config.get_dtcs())
+CAL_ID = responses.get_cal_id()
 
-POSITIVE_RESPONSE_SID_MASK = 0x40
+ECU_NAME = responses.get_ecu_name()
 
-NEGATIVE_RESPONSE_SID = 0x7F
+BOX_CODE = responses.get_box_code()
 
-NRC_SUB_FUNCTION_NOT_SUPPORTED = 0x12
+SW_VERS = responses.get_sw_vers()
 
-NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT = 0x13
+FAZIT = responses.get_fazit()
 
+SERIAL = responses.get_serial()
+
+TCU_ASW = responses.get_tcu_asw()
 
 SERVICES = [
-    {"id": ECU_RESET_SID, "description": "ECUReset", "response": lambda request: get_0x11_response(request)},
-    {"id": READ_DTC_INFO_SID, "description": "ReadDTCInformation", "response": lambda request: get_0x19_response(request)},
-    {"id": DIAGNOSTIC_SESSION_CONTROL_SID, "description": "DiagnosticSessionControl", "response": lambda request: get_0x10_response(request)}
+    {"id": 0x01, "description": "Show current data", "response": lambda: None,
+     "pids": [
+         {"id": 0x05, "description": "Engine coolant temperature", "response": lambda: responses.get_engine_temperature()},
+         {"id": 0x0D, "description": "Vehicle speed", "response": lambda: responses.get_vehicle_speed()},
+         {"id": 0x2F, "description": "Fuel tank level input", "response": lambda: responses.get_fuel_level()},
+         {"id": 0x51, "description": "Fuel type", "response": lambda: FUEL_TYPE}
+     ]},
+    {"id": 0x03, "description": "Show DTCs", "response": lambda: DTCs},
+    {"id": 0x09, "description": "Request vehicle information", "response": lambda: None,
+     "pids": [
+         {"id": 0x02, "description": "Vehicle Identification Number(VIN)", "response": lambda: VIN},
+         {"id": 0x06, "description": "CVN", "response": lambda: CVN},
+         {"id": 0x04, "description": "CAL ID", "response": lambda: CAL_ID},
+         {"id": 0x0A, "description": "ECU name", "response": lambda: ECU_NAME}
+     ]},
+    {"id": 0x22, "description": "Request Data By Identifier", "response": lambda: None,
+     "pids": [
+         {"id": 0xF187, "description": "VW Spare Part Number", "response": lambda: BOX_CODE},
+         {"id": 0xF189, "description": "VW Application SW Version", "response": lambda: SW_VERS},
+         {"id": 0xF17C, "description": "VW FAZIT ID String", "response": lambda: FAZIT},
+         {"id": 0xF18C, "description": "Controller Serial Number", "response": lambda: SERIAL},
+         {"id": 0x110D, "description": "TCU Application SW Vers", "response": lambda: TCU_ASW}
+     ]}
+
 ]
 
 
-def process_service_request(request):
-    if request is not None and len(request) >= 1:
-        sid = request[0]
-        for service in SERVICES:
-            if service.get("id") == sid:
-                logger.info("Requested UDS SID " + hex(sid) + ": " + service.get("description"))
-                return service.get("response")(request)
-        logger.warning("Requested SID " + hex(sid) + " not supported")
+def process_service_request(requested_sid, requested_pid):
+    if is_service_request_valid(requested_sid, requested_pid):
+        service_response, service_pids = get_service(requested_sid)
+        if service_pids is not None and requested_pid is not None:
+            if is_supported_pids_request(requested_pid):
+                response = get_supported_pids_response(service_pids, requested_pid)
+                return add_response_prefix(requested_sid, requested_pid, response)
+            return add_response_prefix(requested_sid, requested_pid, get_pid_response(requested_pid, service_pids))
+        return add_response_prefix(requested_sid, requested_pid, service_response)
     else:
         logger.warning("Invalid request")
         return None
 
 
-def get_0x10_response(request):
-    if len(request) == 2:
-        session_type = request[1]
-        if session_type in DIAGNOSTIC_SESSION_TYPES:
-            return get_positive_response_sid(DIAGNOSTIC_SESSION_CONTROL_SID) + bytes([session_type]) \
-                   + bytes(DIAGNOSTIC_SESSION_PARAMETER_RECORD)
-        return get_negative_response(DIAGNOSTIC_SESSION_CONTROL_SID,  NRC_SUB_FUNCTION_NOT_SUPPORTED)
-    return get_negative_response(DIAGNOSTIC_SESSION_CONTROL_SID,  NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT)
+def add_response_prefix(requested_sid, requested_pid, response):
+    if response is not None:
+        response_sid = bytes([POSITIVE_RESPONSE_MASK + requested_sid])
+        if requested_pid is None:
+            return response_sid + response
+        return response_sid + requested_pid.to_bytes(2, byteorder='big') + response
+    return None
 
 
-def get_0x11_response(request):
-    if len(request) == 2:
-        reset_type = request[1]
-        if is_reset_type_supported(reset_type):
-            positive_response = get_positive_response_sid(ECU_RESET_SID) + bytes([reset_type])
-            if reset_type == ECU_RESET_ENABLE_RAPID_POWER_SHUT_DOWN:
-                return positive_response + bytes([ECU_RESET_POWER_DOWN_TIME])
-            return positive_response
-        return get_negative_response(ECU_RESET_SID,  NRC_SUB_FUNCTION_NOT_SUPPORTED)
-    return get_negative_response(ECU_RESET_SID,  NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT)
+def is_service_request_valid(requested_sid, requested_pid):
+    is_sid_valid_ = is_sid_valid(requested_sid)
+    return is_sid_valid_ and is_pid_valid(requested_pid) or (is_sid_valid_ and requested_pid is None)
 
 
-def get_0x19_response(request):
-    if len(request) == 2:
-        report_type = request[1]
-        if report_type == READ_DTC_INFO_BY_STATUS_MASK:
-            positive_response = get_positive_response_sid(READ_DTC_INFO_SID) + bytes([report_type]) \
-                                + bytes([READ_DTC_STATUS_AVAILABILITY_MASK])
-            return add_dtcs_to_response(positive_response)
-        return get_negative_response(READ_DTC_INFO_SID, NRC_SUB_FUNCTION_NOT_SUPPORTED)
-    return get_negative_response(READ_DTC_INFO_SID, NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT)
+def is_sid_valid(sid):
+    return isinstance(sid, int)
 
 
-def is_reset_type_supported(reset_type):
-    return 0x05 >= reset_type >= 0x01
+def is_pid_valid(pid):
+    return isinstance(pid, int)
 
 
-def add_dtcs_to_response(response):
-    if len(DTCS) > 0:
-        return response + DTCS
-    return response
+def get_service(requested_sid):
+    for service in SERVICES:
+        if service.get("id") == requested_sid:
+            logger.info("Requested OBD SID " + hex(requested_sid) + ": " + service.get("description"))
+            return service.get("response")(), service.get("pids")
+    logger.warning("Requested SID " + hex(requested_sid) + " not supported")
+    return None, None
 
 
-def get_positive_response_sid(requested_sid):
-    return bytes([requested_sid + POSITIVE_RESPONSE_SID_MASK])
+def get_pid_response(requested_pid, pids):
+    for pid in pids:
+        if pid.get("id") == requested_pid:
+            logger.info("Requested PID " + hex(requested_pid) + ": " + pid.get("description"))
+            return pid.get("response")()
+    logger.warning("Requested PID " + hex(requested_pid) + " not supported")
+    return None
 
 
-def get_negative_response(sid, nrc):
-    logger.warning("Negative response for SID " + hex(sid) + " will be sent")
-    return bytes([NEGATIVE_RESPONSE_SID]) + bytes([sid]) + bytes([nrc])
+def is_supported_pids_request(requested_pid):
+    return requested_pid % SUPPORTED_PIDS_RESPONSE_NUMBER_OF_PIDs == 0
 
 
+def get_supported_pids_response(supported_pids, requested_pid):
+    supported_pids_response = init_supported_pids_response(requested_pid)
+    for pid in supported_pids:
+        supported_pid = pid.get("id")
+        if requested_pid < supported_pid < (requested_pid + SUPPORTED_PIDS_RESPONSE_NUMBER_OF_PIDs):
+            supported_pids_response |= SUPPORTED_PIDS_RESPONSE_MASK >> (supported_pid - requested_pid - 1)
+    return supported_pids_response.to_bytes(4, BIG_ENDIAN)
+
+
+def init_supported_pids_response(requested_pid):
+    if requested_pid / SUPPORTED_PIDS_RESPONSE_NUMBER_OF_PIDs > 6:
+        return SUPPORTED_PIDS_RESPONSE_INIT_VALUE >> 1
+    return SUPPORTED_PIDS_RESPONSE_INIT_VALUE

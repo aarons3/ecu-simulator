@@ -8,22 +8,35 @@ CAN_INTERFACE = ecu_config.get_can_interface()
 
 
 def start():
-    isotp_socket = create_isotp_socket(UDS_ECU_ADDRESS, UDS_TARGET_ADDRESS)
+    request_socket = create_isotp_socket(UDS_ECU_ADDRESS, UDS_TARGET_ADDRESS)
+    response_socket = create_isotp_socket(UDS_ECU_ADDRESS, UDS_TARGET_ADDRESS)
     while True:
-        request = isotp_socket.recv()
-        if request is not None:
+        request = request_socket.recv()
+        requested_pid, requested_sid = get_sid_and_pid(request)
+        if requested_sid is not None:
             log_request(request)
-            if len(request) >= 1:
-                response = services.process_service_request(request)
-                if response is not None:
-                    log_response(response)
-                    isotp_socket.send(response)
-
+            response = services.process_service_request(requested_sid, requested_pid)
+            if response is not None:
+                log_response(response)
+                response_socket.send(response)
 
 def create_isotp_socket(receiver_address, target_address):
     socket = isotp.socket()
     socket.bind(CAN_INTERFACE, isotp.Address(rxid=receiver_address, txid=target_address))
     return socket
+
+
+def get_sid_and_pid(request):
+    pid, sid = None, None
+    if request is not None:
+        request_bytes_length = len(request)
+        if request_bytes_length >= 1:
+            sid = request[0]
+        if request_bytes_length == 2:
+            pid = request[1]
+        if request_bytes_length == 3:
+            pid = int.from_bytes(request[1:3], byteorder='big')
+    return pid, sid
 
 
 def log_request(request):
@@ -32,4 +45,4 @@ def log_request(request):
 
 
 def log_response(response):
-    logger.info("Sending to " + hex(UDS_ECU_ADDRESS) + " Response: 0x" + response.hex())
+    logger.info("Sending to " + hex(UDS_TARGET_ADDRESS) + " Response: 0x" + response.hex())

@@ -17,7 +17,13 @@ DTCs = responses.get_dtcs()
 
 VIN = responses.get_vin()
 
+CVN = responses.get_cvn()
+
+CAL_ID = responses.get_cal_id()
+
 ECU_NAME = responses.get_ecu_name()
+
+BOX_CODE = responses.get_box_code()
 
 
 SERVICES = [
@@ -32,8 +38,15 @@ SERVICES = [
     {"id": 0x09, "description": "Request vehicle information", "response": lambda: None,
      "pids": [
          {"id": 0x02, "description": "Vehicle Identification Number(VIN)", "response": lambda: VIN},
+         {"id": 0x06, "description": "CVN", "response": lambda: CVN},
+         {"id": 0x04, "description": "CAL ID", "response": lambda: CAL_ID},
          {"id": 0x0A, "description": "ECU name", "response": lambda: ECU_NAME}
+     ]},
+    {"id": 0x22, "description": "Request Data By Identifier", "response": lambda: None,
+     "pids": [
+         {"id": 0xF1, "description": "VW Spare Part Number", "response": lambda: BOX_CODE}
      ]}
+
 ]
 
 

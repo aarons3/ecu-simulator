@@ -116,7 +116,34 @@ def add_ecu_name_padding(ecu_name):
 def get_box_code():
     box_code = ecu_config.get_box_code()
     box_code_bytes = box_code.encode()
+    #box_code_bytes = b"\x30\x47\x43\x33\x30\x30\x30\x32\x30\x46"
     return box_code_bytes
+
+
+def get_sw_vers():
+    sw_vers = ecu_config.get_sw_vers()
+    sw_vers_bytes = sw_vers.encode()
+    return sw_vers_bytes
+
+
+def get_fazit():
+    fazit = ecu_config.get_fazit()
+    fazit_bytes = fazit.encode()
+    return fazit_bytes
+
+
+def get_serial():
+    serial= ecu_config.get_serial()
+    serial_bytes = serial.encode()
+    #serial_bytes = b"\x30\x33\x30\x37\x00"
+    return serial_bytes
+
+
+def get_tcu_asw():
+    tcu_asw = ecu_config.get_tcu_asw()
+    tcu_asw_bytes = tcu_asw.encode()
+    #tcu_asw_bytes = b"\x46\x35\x30\x4D\x00"
+    return tcu_asw_bytes
 
 
 def get_dtcs():
